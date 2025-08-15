@@ -8,19 +8,46 @@ def _run(cmd: list):
     return p.stdout
 
 def download_to_temp(url: str) -> str:
-    # normalize Dropbox share ?dl=1
-    if "dropbox.com" in url and "dl=" not in url:
-        url = url + ("&dl=1" if "?" in url else "?dl=1")
-    elif "dropbox.com" in url:
-        url = url.replace("dl=0","dl=1")
-    r = requests.get(url, stream=True, timeout=600)
+    import re
+
+    # 1) 標準化 Dropbox 分享連結 → 直連主機，避免拿到 HTML 預覽頁
+    if "dropbox.com" in url:
+        url = re.sub(r"^https?://(www\.)?dropbox\.com", "https://dl.dropboxusercontent.com", url)
+        # 直連主機不需要 ?dl=0/1，去掉 query 以免干擾
+        url = url.split("?")[0]
+
+    r = requests.get(url, stream=True, timeout=600, allow_redirects=True)
     r.raise_for_status()
-    suffix = "." + (url.split("?")[0].split("/")[-1].split(".")[-1] or "wav")
+
+    # 2) 檢查 Content-Type：若是 HTML/純文字，直接報錯（不要讓 ffprobe 去撞）
+    ctype = (r.headers.get("Content-Type") or "").lower()
+    if ("text/html" in ctype) or ("text/plain" in ctype):
+        raise RuntimeError(f"URL did not return audio content (Content-Type={ctype}). "
+                           f"Use a direct file URL or pass a Dropbox 'path' so server can fetch a temporary link.")
+
+    # 3) 萃取副檔名並存檔
+    filename = url.split("/")[-1]
+    ext = filename.split(".")[-1] if "." in filename else "wav"
+    suffix = f".{ext}"
     fd, path = tempfile.mkstemp(prefix="aud_", suffix=suffix)
     with os.fdopen(fd, "wb") as f:
-        for chunk in r.iter_content(1024*1024):
+        for chunk in r.iter_content(1024 * 1024):
             if chunk:
                 f.write(chunk)
+
+    # 4) 追加安全檢查：太小很可能是錯誤頁或壞檔
+    try:
+        sz = os.path.getsize(path)
+        if sz < 1024:
+            raise RuntimeError(f"Downloaded file too small ({sz} bytes). Not a valid audio.")
+    except Exception as e:
+        # 清掉檔案避免留垃圾
+        try:
+            os.remove(path)
+        except Exception:
+            pass
+        raise
+
     return path
 
 def probe_duration(path: str) -> float:

@@ -158,10 +158,19 @@ def split_audio_upload():
     group_prefix = data.get("group_prefix","meeting")
     max_dirs = int(data.get("max_dirs",5))
     max_files = int(data.get("max_files_per_dir",5))
+    path = data.get("path")
+
+    if not url and path:
+        # 以 Dropbox 路徑換真正可下載的臨時連結（最穩）
+        try:
+            tmp_link = api_call("files/get_temporary_link", {"path": path})
+            url = tmp_link.get("link")
+        except Exception as e:
+            return jsonify(error="cannot_get_temporary_link", detail=str(e)), 502
 
     if not url:
-        return jsonify(error="Missing 'url'"), 400
-
+        return jsonify(error="Missing 'url' or 'path'"), 400
+    
     tmp = None
     tmpdir = tempfile.mkdtemp(prefix="split_")
     try:
@@ -204,10 +213,18 @@ def ensure_slices():
     segment_time = int(data.get("segment_time", 400))
     overlap = int(data.get("overlap_seconds", 10))
     fmt = data.get("format","wav").lower()
+    path = data.get("path")
+    if not url and path:
+        # 以 Dropbox 路徑換真正可下載的臨時連結（最穩）
+        try:
+            tmp_link = api_call("files/get_temporary_link", {"path": path})
+            url = tmp_link.get("link")
+        except Exception as e:
+            return jsonify(error="cannot_get_temporary_link", detail=str(e)), 502
 
     if not url:
-        return jsonify(error="Missing 'url'"), 400
-
+        return jsonify(error="Missing 'url' or 'path'"), 400
+    
     # check if already has this group's files anywhere in 01..NN
     try:
         ensure_folder(dest_root)

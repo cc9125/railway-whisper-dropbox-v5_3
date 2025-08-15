@@ -13,7 +13,18 @@
     "max_dirs": 5,
     "max_files_per_dir": 5
   }
-  ```
+  or
+  {
+    "path": "/音檔/meeting.WAV",
+    "segment_time": 400,
+    "overlap_seconds": 10,
+    "format": "wav",
+    "dest_root": "/音檔",
+    "group_prefix": "meetingA",
+    "max_dirs": 5,
+    "max_files_per_dir": 5
+  }
+```
   - 會下載原始音檔 → 以 `segment_time` 切片並套 `overlap_seconds` 重疊 → 轉成 mono 16k →
     上傳到 `/音檔/01..05`，每個子目錄最多 `max_files_per_dir` 個檔。
 
@@ -34,3 +45,4 @@
 ## Deploy
 - Healthcheck Path 設 `/health`
 - 使用 Dockerfile 自帶的 gunicorn 指令即可
+
